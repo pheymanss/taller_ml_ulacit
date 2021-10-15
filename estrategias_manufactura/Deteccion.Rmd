@@ -11,8 +11,6 @@ Es buena práctica comenzar cada documento cargando los paquetes que se van a ut
 ```{r, eval=FALSE}
 install.packages('dplyr') 
 install.packages('skimr') 
-install.packages('pROC') 
-install.packages('cvms') 
 install.packages('broom')
 ```
 
@@ -22,8 +20,6 @@ Cuando los paquetes estáns instalados, los podemos ver en la pestaña 'Packages
 options(scipen=999) # para evitar que se imprima en notacion cientifica
 library(dplyr) # para transformacion de datos
 library(skimr) # para tener un resumen del contenido de las tablas
-library(pROC)  # para graficar la curva ROC
-library(cvms)  # para visualizar la matriz de confusión
 library(broom) # para 'limpiar' el resultado de la calibración del modelo
 ```
 

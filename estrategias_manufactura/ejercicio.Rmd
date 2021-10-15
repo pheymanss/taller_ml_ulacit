@@ -1,0 +1,73 @@
+---
+title: "Análisis de Anomalía"
+author: "Nombre estudiante"
+output: html_document
+---
+
+En este ejercicio se busca crear algo similar a lo demostrado en la sesión, solamente que con otro conjunto de datos. Estos son los datos de una empresa de comercio digital y estas son las especificaciones de las columnas:
+
+-   **i_ID**: Identificador de cada cliente.
+-   **Warehouse block**: Bloques de la bodega: A,B,C,D,E.
+-   **Mode of shipment**: Modo de transporte: Barco (Ship), vuelo (Flight) y carretera (Road.)
+-   **Customer care calls**: Número de llamadas recibidas preguntando por el envío.
+-   **Customer rating**: Calificación del cliente: 1 a 5 de peor a mejor.
+-   **Cost of the product**: Costo del producto en dólares estadounidenses.
+-   **Prior purchases**: Número de compras anteriores que ha efectuado cada cliente.
+-   **Product importance**: Importancia del producto: baja (low), media (medium), alta (high).
+-   **Gender**: Género de la persona. Femenino o masculino.
+-   **Discount offered**: Si se le ofrece un descunto por el producto.
+-   **Weight in gms**: Peso en gramos del producto.
+-   **Reached on time**: Bandera que indica si el producto llegó a tiempo. 1 es que NO llegó a tiempo, 0 es que sí.
+
+El ejercicio consiste en:
+
+1.  Conocer los datos e interpretarlos
+2.  Construir varios modelos con distintas variables, interpretarlos y elegir el mejor
+
+Aquí les damos un empujón para empezar:
+
+Instalamos los paquetes y los cargamos en memoria para que se puedan usar:
+
+```{r}
+install.packages('dplyr')
+install.packages('skimr')
+install.packages('broom')
+
+library(dplyr)      # para transformacion de datos
+library(skimr)      # para tener un resumen del contenido de las tablas
+library(broom)      # para 'limpiar' el resultado de la calibración del modelo
+
+options(scipen=999) # para evitar que se imprima en notacion cientifica
+```
+
+Y cargamos la tabla:
+
+```{r}
+# esta linea es para ubicar el archivo este donde este
+nombre_archivo <- list.files(pattern = 'ejercicio.csv', full.names = TRUE, recursive = TRUE)
+
+# y se lee
+datos <- read.csv(nombre_archivo) # cargar los datos
+
+# y definimos lo que es una anomalia (si gustan pueden modificar esta definicion) 
+
+```
+
+
+
+La recomendación es apoyarse bastante en la sección "Modelo" del archivo del demo, que también está en la carpeta y se llama "Deteccion.Rmd"
+
+
+El código de R se abre con "```{r}" y se cierra con '```'. Para insertar un 'chunk' nuevo, pueden usar el botón que es un círulo blanco con un '+' y un cuadrado verde con una "C" y ahí elegir R, o bien simplemente copiar y pegar otro chunk y borrar su contenido.
+
+# Conocer los datos
+
+```{r}
+
+```
+
+# Modelar
+
+```{r}
+
+```
