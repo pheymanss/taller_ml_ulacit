@@ -1,0 +1,145 @@
+---
+title: "Análisis de anomalías"
+author: "Growth Acceleration Partners" 
+output: html_document
+---
+
+En este documento se realiza una demostración completa de un análisis de anomalías sobre un conjunto de datos de inventarios de una distribuidora de licores.
+
+Es buena práctica comenzar cada documento cargando los paquetes que se van a utilizar. Los paquetes son colecciones de funciones que extienden la funcionalidad de R para fines específicos. Los paquetes se pueden instalar directamente desde R con el comando `install.packages`.
+
+```{r, eval=FALSE}
+install.packages('dplyr') 
+install.packages('skimr') 
+install.packages('pROC') 
+install.packages('cvms') 
+install.packages('broom')
+```
+
+Cuando los paquetes estáns instalados, los podemos ver en la pestaña 'Packages' del panel inferior derecho de RStudio. Sin embargo, esto no es suficiente para ya poder utilizar las funciones de los paquetes: tenemos que cargarlos en memoria. Estos pasos son separados porque no es deseable tener cargados siempre todos los paquetes que alguna vez hayamos instalado, sino solamente los que se necesiten para ejecutar cada proyecto.
+
+```{r, warning=FALSE, message=FALSE}
+options(scipen=999) # para evitar que se imprima en notacion cientifica
+library(dplyr) # para transformacion de datos
+library(skimr) # para tener un resumen del contenido de las tablas
+library(pROC)  # para graficar la curva ROC
+library(cvms)  # para visualizar la matriz de confusión
+library(broom) # para 'limpiar' el resultado de la calibración del modelo
+```
+
+# Trabajar los datos
+
+Comenzamos cargando nuestros datos. Los datos a utilizar están en el archivo `Warehouse_and_Retail_Sales.csv`, que es un archivo de tipo csv. En R se pueden leer datos de muchos formatos distintos, pero los archivos separados por coma son un estándar práctico, universal y liviano.
+
+```{r}
+bodegas <- read.csv('Warehouse_and_Retail_Sales.csv')
+```
+
+Teniendo los datos cargados, podemos usar la función `skim` para tener un resumen completo del contenido de la tabla
+
+```{r}
+skim(bodegas)
+```
+
+En este estudio nos vamos a enfocar en la variable `RETAIL.TRANSFERS`, que se refiere a movilizaciones de stock entre bodegas. Si bien esto es un aspecto inevitable de la gestión de inventario en una cadena de suministros, entender los factores que actúan en estas trasnferencias puede permitirnos identificar oportunidades de mejora.
+
+Si observamos las variables categóricas, podemos ver que `ITEM.CODE` e `ITEM.DESCRIPTION` tienen 23mil valores distintos, por lo que hacer un análisis por código de tiem sería inmanejable. Por esto, resolvemos resumir los datos por tipo de item, de los cuales tneemos 9 categorías.
+
+Con la función `table` obtenemos los conteos de cada uno de los valores de un vector, y con el opreador `$` podemos acceder al vector que conforma una columna específica de la tabla.
+
+```{r}
+table(bodegas$ITEM.TYPE)
+```
+
+Hay una amplia desigualdad en las categorías, aquí podríamos decidir si es adecuado hacer agrupaciones como 'otros'. Sin embargo, 'DUNNAGE', 'REF' y 'STR_SUPPLIES' se refieren a activos logísticos que sería mejor eliminar del conjunto de datos del todo, ya que no representan productos inventariados.
+
+```{r}
+datos_modelar <- bodegas %>% filter(ITEM.TYPE %in% c('BEER', 'KEGS', 'LIQUOR', 'NON-ALCOHOL', 'WINE'))
+```
+
+Y con esto, sumamos todas las observaciones que correspondan al mismo tipo de producto, proveedor, año y mes.
+
+```{r}
+datos_modelar <- datos_modelar %>% 
+  group_by(SUPPLIER, ITEM.TYPE, MONTH, YEAR) %>% 
+  summarise(RETAIL.SALES = sum(RETAIL.SALES),
+            RETAIL.TRANSFERS = sum(RETAIL.TRANSFERS),
+            WAREHOUSE.SALES = sum(WAREHOUSE.SALES)) %>% 
+  ungroup() # !! muy importante usar ungroup para que el resumen de skim no se haga por grupo
+```
+
+Observemos entonces la tabla con la que modelaremos
+
+```{r}
+skim(datos_modelar)
+```
+
+Aquí podemos ver que el promedio de transferencias por mes es 227, pero la mediana (es decir el valor que se encuentra a la mitad del conteo de todos los valores) es solamente 8. Esto nos señala que la variable tiene muy pocas observaciones con valores muy elevados, y esto lo podemos corroborar mostrando el histograma.
+
+```{r}
+hist(datos_modelar$RETAIL.TRANSFERS)
+```
+
+En este caso no tenemos una columna que nos diga si una observación es una anomalía o no, pero sí tenemos información suficiente para construirla bajo nuestr criterio. Si calculamos el cuantil al 90% (es decir el valor que es mayor al 90% de todas las observaciones) obtenemos un valor de 458.58, que es más de 50 veces mayor que el promedio.
+
+```{r}
+quantile(datos_modelar$RETAIL.TRANSFERS, .9)
+```
+
+Así, podemos definir una variable que sea como una bandera: que indique si una obervación es anómala si tiene más transferencias que el cuantil del 90%.
+
+```{r}
+quant90 <- quantile(datos_modelar$RETAIL.TRANSFERS, .9)
+
+datos_modelar <- datos_modelar %>% mutate(obs_anomala = RETAIL.TRANSFERS > quant90)
+```
+
+Y de nuevo usamos table para ver cuántas obervaciones captamos como anómalas
+
+```{r}
+table(datos_modelar$obs_anomala)
+```
+
+# Modelo
+
+Como tenemos una variable objetivo (`obs_anomala`), y de tipo categórica, el modelo apropiado sería uno de clasificación. Vamos a utilizar el modelo más básico para trabajar estos problemas, que es la regresión logística. Para esto, utilizamos la función `glm` con el parámetro `familiy = binomial()`.
+
+Para elegir qué variables queremos usar, se utiliza la notación `variable_a_predecir ~ var1 + var2 + ... + varN`
+
+```{r}
+model <- glm(obs_anomala ~ ITEM.TYPE +  RETAIL.SALES + WAREHOUSE.SALES,
+            family = binomial(),
+            data = datos_modelar)
+```
+
+Este modelo devuelve un puntaje de 0 a 1 sugiriendo la probabilidad de que una observación sea anómala en su campo `$fitted.values`
+
+```{r}
+scores <- model$fitted.values
+head(scores)
+```
+
+Podemos ver que este modelo está muy seguro de que lo hizo muy bien, porque los puntajes se acumulan en ambos extremos y hay muy pocos valores con scores 'intermedios'
+
+```{r}
+hist(scores)
+```
+
+Y para ver qué tan bien lo hizo, podemos contabilizar cuántas observaciones calificó correctamente. Esto usualmente se hace sobre otro conjunto de datos que separamos antes del entrenamiento, pero paraa mantener la simplicidad lo haremos sobre los mismos datos.
+
+```{r}
+prediccion <- as.integer(scores > 0.5)
+valor_real <-  as.integer(datos_modelar$obs_anomala)
+
+table(valor_real, prediccion)
+```
+
+Sabiendo que el modelo es adecuado, podemos pasar entonces a interpretar qué está haciendo el modelo. Los coeficientes nos dan una dirección de cómo afecta positiva o negativamente la probabilidad de que una observación sea anómala. Acá se transforma la salida del modelo para facilitar su lectura
+
+```{r}
+model %>% 
+  tidy() %>% 
+  transmute(variable = term,
+            coeficiente = estimate, 
+            significancia_estadistica = p.value < 0.05)
+```
