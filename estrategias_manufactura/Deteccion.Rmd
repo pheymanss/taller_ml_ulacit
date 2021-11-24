@@ -79,7 +79,7 @@ hist(datos_modelar$RETAIL.TRANSFERS)
 En este caso no tenemos una columna que nos diga si una observación es una anomalía o no, pero sí tenemos información suficiente para construirla bajo nuestr criterio. Si calculamos el cuantil al 90% (es decir el valor que es mayor al 90% de todas las observaciones) obtenemos un valor de 458.58, que es más de 50 veces mayor que el promedio.
 
 ```{r}
-quantile(datos_modelar$RETAIL.TRANSFERS, .9)
+quantile(datos_modelar$RETAIL.TRANSFERS, .90)
 ```
 
 Así, podemos definir una variable que sea como una bandera: que indique si una obervación es anómala si tiene más transferencias que el cuantil del 90%.

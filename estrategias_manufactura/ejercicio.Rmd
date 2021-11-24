@@ -53,12 +53,9 @@ datos <- read.csv(nombre_archivo) # cargar los datos
 
 ```
 
-
-
 La recomendación es apoyarse bastante en la sección "Modelo" del archivo del demo, que también está en la carpeta y se llama "Deteccion.Rmd"
 
-
-El código de R se abre con "```{r}" y se cierra con '```'. Para insertar un 'chunk' nuevo, pueden usar el botón que es un círulo blanco con un '+' y un cuadrado verde con una "C" y ahí elegir R, o bien simplemente copiar y pegar otro chunk y borrar su contenido.
+El código de R se abre con "`{r}" y se cierra con '`'. Para insertar un 'chunk' nuevo, pueden usar el botón que es un círulo blanco con un '+' y un cuadrado verde con una "C" y ahí elegir R, o bien simplemente copiar y pegar otro chunk y borrar su contenido.
 
 # Conocer los datos
 
