@@ -1,0 +1,194 @@
+---
+title: "Análisis de Rotación de Personal"
+author: "Growth Acceleration Partners"
+date: "11/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+# install.packages('dplyr')
+# install.packages('skimr')
+# install.packages('broom')
+# install.package('ggplot2')
+# install.packages('ModelMetrics')
+
+library(dplyr)        # para transformacion de datos
+library(ggplot2)      # para graficar
+library(skimr)        # para tener un resumen del contenido de las tablas
+library(broom)        # para 'limpiar' el resultado de la calibración del modelo
+library(ModelMetrics) # para calcular que tan bien le fue al modelo
+
+options(scipen=999) # para evitar que se imprima en notacion cientifica
+```
+
+Comenzamos cargando los datos. Esn este caso trabajamos con una sola tabla con información desagregada a nivel de cada persona.
+
+```{r}
+personal <- read.csv('rotacion_personal.csv')
+```
+
+La función `skim` del paquete `skimr` nos da un completo resumen del contenido de nuestra tabla.
+
+```{r}
+skim(personal)
+```
+
+# Análisis exploratorio de datos (EDA)
+
+## Categóricas
+
+```{r}
+barras_abandono <- function(variable){
+  personal %>%  
+    group_by(.data[[variable]]) %>% 
+    summarise(Tasa_abandono = round(mean(abandono)*100, 2) %>%  paste0('%')) %>%  
+    print()
+  
+  qplot(data = personal,
+        x = get(variable),
+        geom = 'bar',
+        fill = abandono) +
+    theme_minimal() +
+    xlab(variable) +
+    scale_fill_manual(values = c('#93C6F0', "#F87060"))
+}
+
+```
+
+```{r}
+barras_abandono('genero')
+```
+
+## Numéricas
+
+```{r}
+boxplot_abandono <- function(variable){
+  qplot(data = personal,
+      y = get(variable),
+      geom = 'boxplot',
+      x = abandono,
+      fill = abandono,
+      xlab = '',
+      ylab = gsub(pattern = '_', replacement = ' ', x = variable)) +
+  theme_minimal() +
+  scale_fill_manual(values = c('#93C6F0', "#F87060"))
+}
+```
+
+```{r}
+boxplot_abandono('calificacion_capacitacion')
+```
+
+```{r}
+boxplot_abandono('annos_experiencia')
+```
+
+```{r}
+boxplot_abandono('annos_en_empresa')
+```
+
+```{r}
+boxplot_abandono('desempenno')
+```
+
+```{r}
+boxplot_abandono('edad')
+```
+
+```{r}
+boxplot_abandono('distancia_lugar_trabajo')
+```
+
+```{r}
+boxplot_abandono('porcentaje_equipo_habla_espannol')
+```
+
+# Modelo
+
+## Preparación de variables
+
+En el caso de estos datos, solamente vamos a normalizar las variables. Este proceso se hace para que la escala de cada variable no afecte el el tamaño de su efecto en el modelo. Por ejemplo la variable desempeño está en una escala de 0 a 100, mientras la calificación de capacitación va de 0 a 5. Si bien esto no es un problema a nivel de metodología estadística, dejarlas así nos obliga a tomar en cuenta esas escalas a la hora de interpretar los coeficientes, y eso dificultaría identificar cuáles variables son las que tienen mayor impacto en la predicción.
+
+```{r}
+normalizar_numericas <- function(datos){
+  # elegimos solamente las variables numericas
+  indice_numericas <- sapply(datos, is.numeric) 
+  numericas <- datos[indice_numericas]
+  
+  # la funcion lapply aplica una transformacion a cada fila
+  # y la funcion scale hace la normalizacion propiamente
+  numericas_estandarizadas <- as.data.frame(lapply(numericas, scale))
+  
+  # y le unimos las categoricas para no perderlas
+  categoricas <- datos[!indice_numericas]
+  tabla_completa <- cbind(categoricas,
+                          numericas_estandarizadas)
+  
+  return(tabla_completa)
+}
+
+datos_modelar <- normalizar_numericas(personal)
+```
+
+## Entrenamiento del modelo
+
+Acá cada línea tiene un comentario explicando qué se está haciendo
+
+```{r}
+entrenar_modelo_abandono <- function(formula){
+  # fijar una semilla hace que los resultados sean reproducibles
+  set.seed(1)
+  
+  # define muestreo aleatorio de filas para entrenar el modelo
+  indice_aleatorio_80_porciento <- runif(nrow(datos_modelar)) < .8 
+  entrenamiento <- datos_modelar[indice_aleatorio_80_porciento, ]
+  
+  # entrena el modelo
+  modelo <- glm(data = entrenamiento, formula = formula, family = binomial())
+  
+  # probamos el modelo sobre los datos que no se usaron en el entrenamiento
+  prueba <- datos_modelar[!indice_aleatorio_80_porciento, ]
+  
+  # calcula la métrica de ajuste "AUC".
+  # para una explicacion detallada, ver 
+  # https://www.youtube.com/watch?v=fzZBpgm22PI
+  AUC <- auc(actual = prueba$abandono, 
+             predicted = predict(modelo, 
+                                 newdata = prueba,
+                                 type = 'response'))
+  
+  message('El área sobre la curva para los datos de test para este modelo es: ', AUC, '\n')
+  
+  # devuelve una versión simplificada del resumen de coeficientes del modelo
+  resumen <- modelo %>% 
+    tidy() %>% 
+    transmute(variable = term,
+              coeficiente = estimate, 
+              significancia_estadistica = p.value < 0.05)
+  
+  print(resumen)
+  
+  return(modelo)
+}
+```
+
+Comenzamos con un modelo con todas las variables. La forma de elegir cuáles variables vamos a usar es especificándolas en la formula, la cual tiene la forma: `variable_a_predecir ~ var1 + var2 + ... + varN`. En caso de querer usar todas las variables, podemos usar el punto al lado derecho.
+
+```{r}
+m1 <- entrenar_modelo_abandono(formula = abandono ~.)
+```
+
+Podemos elegir solamente las variables que tienen significancia estadística, y ver si eso deteriora el modelo
+
+```{r}
+m2 <- entrenar_modelo_abandono(formula = abandono~calificacion_capacitacion +
+                                 annos_experiencia +
+                                 annos_en_empresa + 
+                                 desempenno)
+```
+
+En efecto, tenemos resultados casi idénticos con un modelo más simple.

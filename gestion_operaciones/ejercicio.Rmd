@@ -1,0 +1,108 @@
+---
+title: "Rotación de Personal"
+author: "Growth Acceleration Partners"
+date: "11/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages('dplyr')
+#install.packages('ggplot2')
+#install.packages('skimr')
+#install.packages('broom')
+#install.packages('ModelMetrics')
+
+library(dplyr)        # para transformacion de datos
+library(ggplot2)      # para graficar
+library(skimr)        # para tener un resumen del contenido de las tablas
+library(broom)        # para 'limpiar' el resultado de la calibración del modelo
+library(ModelMetrics) # para calcular que tan bien le fue al modelo
+
+# cargamos las funciones que hicimos en el demo, que guardamos en un archivo aparte para que sea más limpio
+source(list.files(pattern = 'funciones_abandono.R', full.names = TRUE, recursive = TRUE))
+```
+
+
+
+```{r}
+# esta linea es para ubicar el archivo, este donde este
+nombre_archivo <- list.files(pattern = 'ejercicio.csv', full.names = TRUE, recursive = TRUE)
+
+# y con esta se lee
+personal <- read.csv(nombre_archivo) # cargar los datos
+```
+
+
+# Exploracion de datos
+
+```{r}
+skimr::skim(personal)
+```
+
+## Opcional: Más exploración
+
+### Categóricas
+
+
+```{r}
+barras_abandono('viaje_negocios')
+```
+
+
+
+### Numéricas
+
+```{r}
+boxplot_abandono('distancia_de_trabajo_km')
+```
+
+# Preparación de datos
+
+```{r}
+datos_modelar <- normalizar_numericas(personal)
+```
+
+
+# Selección de variables
+
+```{r}
+# el símbolo numeral (#) se usa para comentar el codigo, justo como esta linea que estan leyendo
+# lo que hace este simbolo es decirle a R que no interprete el contenido de la linea como
+# codigo, sino que la ignore al correr la funcion
+
+# podemos aprovechar esto para marcar cuales columnas queremos usar, 'encendiendo' o 'apagando'
+# cada columna al ponerle un signo de numeral antes del nombre de la columna.
+datos_elegidos <- dplyr::select(.data = datos_modelar,
+                                edad,
+                                #viajes_negocios,
+                                tarifa_diaria,
+                                #departamento,
+                                #distancia_de_trabajo_km,
+                                #annos_educacion,
+                                #campo_educacion,
+                                satisfaccion_ambiente,
+                                #genero,
+                                #tarifa_horaria,
+                                involucramiento,
+                                #rol,
+                                nivel_rol,
+                                #satisfaccion_laboral,
+                                #estado_civil,
+                                #ingreso_mensual,
+                                #salario_mensual,
+                                #trabajos_anteriores,
+                                #efectuado_horas_extra,
+                                #aumento_salarial_porcentual,
+                                #calificacion_desempenno,
+                                #annos_totales_trabajando,
+                                #capacitaciones_ultimo_anno,
+                                #balance_vida_trabajo,
+                                #annos_en_la_empresa,
+                                #annos_en_rol_actual,
+                                #annos_desde_ultima_promocion,
+                                #annos_con_actual_jefe,
+                                abandono)
+
+m1 <- entrenar_modelo_abandono(formula = abandono ~.)
+```
